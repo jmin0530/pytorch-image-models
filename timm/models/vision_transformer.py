@@ -266,7 +266,7 @@ class VisionTransformer(nn.Module):
             img_size=img_size, patch_size=patch_size, in_chans=in_chans, embed_dim=embed_dim)
         num_patches = self.patch_embed.num_patches
 
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, embed_dim)) # extra learnable [class] embedding
         self.dist_token = nn.Parameter(torch.zeros(1, 1, embed_dim)) if distilled else None
         self.pos_embed = nn.Parameter(torch.zeros(1, num_patches + self.num_tokens, embed_dim))
         self.pos_drop = nn.Dropout(p=drop_rate)
@@ -290,7 +290,7 @@ class VisionTransformer(nn.Module):
             self.pre_logits = nn.Identity()
 
         # Classifier head(s)
-        self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity()
+        self.head = nn.Linear(self.num_features, num_classes) if num_classes > 0 else nn.Identity() # MLP classifier head
         self.head_dist = None
         if distilled:
             self.head_dist = nn.Linear(self.embed_dim, self.num_classes) if num_classes > 0 else nn.Identity()
@@ -335,13 +335,13 @@ class VisionTransformer(nn.Module):
             self.head_dist = nn.Linear(self.embed_dim, self.num_classes) if num_classes > 0 else nn.Identity()
 
     def forward_features(self, x):
-        x = self.patch_embed(x)
+        x = self.patch_embed(x) # patch embedding
         cls_token = self.cls_token.expand(x.shape[0], -1, -1)  # stole cls_tokens impl from Phil Wang, thanks
         if self.dist_token is None:
-            x = torch.cat((cls_token, x), dim=1)
+            x = torch.cat((cls_token, x), dim=1) # 기존 patch embedding 결과에 class token 추가하여 concat 시킴.
         else:
             x = torch.cat((cls_token, self.dist_token.expand(x.shape[0], -1, -1), x), dim=1)
-        x = self.pos_drop(x + self.pos_embed)
+        x = self.pos_drop(x + self.pos_embed) # position embedding 적용 후 dropout 적용
         x = self.blocks(x)
         x = self.norm(x)
         if self.dist_token is None:
